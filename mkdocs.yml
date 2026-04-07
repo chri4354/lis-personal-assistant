@@ -26,6 +26,10 @@ markdown_extensions:
 - pymdownx.superfences
 nav:
 - Home: index.md
+- Advanced Data Science:
+  - Advanced Decision Tree Concepts and Hyperparameter Tuning: modules/advanced-data-science/advanced-decision-tree-concepts-and-hyperparameter-tuning.md
 - Ai And Ml:
   - Week 01:
     - Introduction to AI and Machine Learning: modules/ai-and-ml/week-01/session-01.md
+- Pages:
+  - Week 6 — Advanced Decision Tree Concepts and Hyperparameter Tuning: pages/week-6-advanced-decision-tree-concepts-and-hyperparameter-tuning.md

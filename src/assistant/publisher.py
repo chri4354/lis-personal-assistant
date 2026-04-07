@@ -257,11 +257,24 @@ def copy_to_publish(
     ]
 
     if clean:
+        # Preserve module.yaml configs before wiping directories
+        saved_configs: list[tuple[Path, str]] = []
         for sub in ("modules", "pages"):
             target = publish_root / sub
             if target.is_dir():
+                for cfg in target.rglob("module.yaml"):
+                    saved_configs.append(
+                        (cfg.relative_to(publish_root), cfg.read_text("utf-8"))
+                    )
                 shutil.rmtree(target)
         logger.info("Cleaned publish directory")
+
+        # Restore module.yaml configs
+        for rel, content in saved_configs:
+            dest_cfg = publish_root / rel
+            dest_cfg.parent.mkdir(parents=True, exist_ok=True)
+            dest_cfg.write_text(content, encoding="utf-8")
+            logger.info("Restored config: %s", rel)
 
         # Restore direct files after cleaning
         for pf in direct_files:
