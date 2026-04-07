@@ -1,0 +1,17 @@
+publish:
+  site_name: Programme Course Book
+  site_url: ""
+  theme: material
+  source_dir: publish
+  output_dir: site
+
+  nav_structure:
+    # auto-generated from publish/ folder and frontmatter
+    auto_generate: true
+    group_by:
+      - module
+      - week
+      - session
+
+  filters:
+    require_frontmatter_publish: true

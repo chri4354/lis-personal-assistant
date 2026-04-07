@@ -1,0 +1,19 @@
+app:
+  name: LIS Personal Assistant
+  version: 0.1.0
+
+paths:
+  inbox: inbox
+  knowledge: knowledge
+  outputs: outputs
+  publish: publish
+  skills: skills
+  templates: templates
+
+llm:
+  default_model: gpt-4.1-nano
+  default_temperature: 0.2
+
+server:
+  host: 127.0.0.1
+  port: 8000

@@ -1,0 +1,29 @@
+name: weekly_comm
+description: Generate a weekly student communication summarising past sessions and upcoming work.
+input_type: metadata
+input_location: null
+
+source_scopes:
+  - knowledge/modules
+  - outputs/lectures
+  - knowledge/communications
+
+outputs:
+  markdown_note:
+    path: outputs/communications
+    template: templates/outputs/weekly_update.md
+  notion_tasks:
+    enabled: false
+
+prompt_template: templates/prompts/weekly_comm.j2
+
+llm:
+  model: null
+  temperature: 0.3
+
+rules:
+  - Ground all content in the module schedule and recent lecture outputs
+  - Include deadlines only if they appear in authoritative documents
+  - Tone must be encouraging, clear, and student-appropriate
+  - Format for Canvas announcement (clean markdown, no internal jargon)
+  - Keep the communication concise — aim for 200-400 words

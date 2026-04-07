@@ -1,0 +1,22 @@
+name: notion_sync
+description: Push structured tasks to a configured Notion database.
+input_type: tasks
+input_location: null
+
+source_scopes: []
+
+outputs:
+  notion_tasks:
+    enabled: true
+
+prompt_template: null
+
+llm:
+  model: null
+  temperature: null
+
+rules:
+  - Deduplicate tasks by title + source_file + date before creating
+  - Always include source_file for traceability
+  - Default task status to 'todo' unless specified
+  - Support dry-run mode for testing without creating real Notion pages

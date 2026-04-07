@@ -1,0 +1,29 @@
+name: lecture_to_page
+description: Convert a lecture transcript into a clean, structured page for publication.
+input_type: transcript
+input_location: inbox/transcripts
+
+source_scopes:
+  - knowledge/modules
+  - knowledge/speakers
+
+outputs:
+  markdown_note:
+    path: outputs/lectures
+    template: templates/outputs/lecture.md
+  publish_page:
+    path: publish/modules
+    template: templates/outputs/lecture.md
+
+prompt_template: templates/prompts/lecture_to_page.j2
+
+llm:
+  model: null
+  temperature: 0.2
+
+rules:
+  - Extract key concepts accurately from the transcript
+  - Preserve student questions and the lecturer's clarifications
+  - Do not add information not present in the transcript or source documents
+  - Structure output for student readability
+  - Include further reading only if mentioned in the transcript or module outline

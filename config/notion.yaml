@@ -1,0 +1,16 @@
+notion:
+  enabled: false
+  task_database_id: ""
+
+  property_map:
+    title: Title
+    description: Description
+    deadline: Deadline
+    module: Module
+    source: Source
+    status: Status
+
+  status_options:
+    todo: todo
+    doing: doing
+    done: done

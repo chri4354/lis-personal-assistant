@@ -1,0 +1,29 @@
+name: meeting_to_actions
+description: Convert a meeting transcript into a structured meeting summary and action list.
+input_type: transcript
+input_location: inbox/transcripts
+
+source_scopes:
+  - knowledge/modules
+  - knowledge/policies
+  - outputs/meetings
+
+outputs:
+  markdown_note:
+    path: outputs/meetings
+    template: templates/outputs/meeting.md
+  notion_tasks:
+    enabled: true
+
+prompt_template: templates/prompts/meeting_to_actions.j2
+
+llm:
+  model: null  # uses default
+  temperature: 0.2
+
+rules:
+  - Do not invent deadlines not explicitly stated in the transcript
+  - Only create tasks that are explicit or strongly implied
+  - Keep task titles atomic and actionable
+  - Attribute tasks to named individuals when mentioned
+  - Flag uncertainty rather than guessing

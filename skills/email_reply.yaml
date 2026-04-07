@@ -1,0 +1,30 @@
+name: email_reply
+description: Draft a context-aware email reply grounded in programme documents.
+input_type: email
+input_location: inbox/emails
+
+source_scopes:
+  - knowledge/assessments
+  - knowledge/modules
+  - knowledge/policies
+  - knowledge/communications
+
+outputs:
+  markdown_note:
+    path: outputs/communications
+    template: templates/outputs/email_reply.md
+  notion_tasks:
+    enabled: false
+
+prompt_template: templates/prompts/email_reply.j2
+
+llm:
+  model: null
+  temperature: 0.3
+
+rules:
+  - Never contradict assessment briefs or official policies
+  - If uncertain about a fact or rule, state uncertainty explicitly rather than inventing policy
+  - Tone must be clear, concise, warm, and professional
+  - Include source references for any factual claims
+  - Do not disclose internal meeting notes or decisions to students
