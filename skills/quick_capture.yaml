@@ -1,0 +1,28 @@
+name: quick_capture
+description: Extract tasks from free-form text (voice notes, brain dumps, quick commands) and push them to Notion.
+input_type: text
+input_location: null
+
+source_scopes:
+  - knowledge/modules
+
+outputs:
+  markdown_note:
+    path: outputs/tasks
+    template: templates/outputs/quick_capture.md
+  notion_tasks:
+    enabled: true
+
+prompt_template: templates/prompts/quick_capture.j2
+
+llm:
+  model: null
+  temperature: 0.2
+
+rules:
+  - Extract every actionable task, even if vaguely stated
+  - Infer reasonable task titles from informal or spoken language
+  - Do not invent deadlines unless explicitly mentioned
+  - Merge duplicate or overlapping items into a single task
+  - If the input mentions a module or course, tag tasks with it
+  - Keep descriptions brief — one sentence max

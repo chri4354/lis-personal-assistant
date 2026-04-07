@@ -106,12 +106,18 @@ class WeeklyComm(BaseModel):
     sources_used: list[str] = Field(default_factory=list)
 
 
+class QuickCapture(BaseModel):
+    summary: str
+    actions: list[TaskItem] = Field(default_factory=list)
+
+
 # Map skill names to their output model for validation
 SKILL_OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "meeting_to_actions": MeetingSummary,
     "email_reply": EmailDraft,
     "lecture_to_page": LecturePage,
     "weekly_comm": WeeklyComm,
+    "quick_capture": QuickCapture,
 }
 
 # ---------------------------------------------------------------------------
