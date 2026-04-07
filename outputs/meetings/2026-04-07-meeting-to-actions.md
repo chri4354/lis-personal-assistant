@@ -1,34 +1,32 @@
 ---
-
-## title: "Support Request for Advertising New Masters Programme at Collective Intelligence Conference"
+title: "Approval and Advertising Strategy for Collective Intelligence Conference"
 type: meeting-summary
 date: unknown
 status: draft
 source_files:
   - "(pasted input)"
+---
 
-# Support Request for Advertising New Masters Programme at Collective Intelligence Conference
+# Approval and Advertising Strategy for Collective Intelligence Conference
 
 **Date:** Not specified
 
 ## Summary
 
-- The team discussed seeking support from LIS to promote the new master's programme.
-- The promotion is intended to occur at the Collective Intelligence Conference in September.
+- The team discussed obtaining approval to present at the ACM Collective Intelligence Conference in September.
+- The team considered requesting support from LIS to advertise the new MASc in AI and CI at the conference.
 
 ## Decisions
 
-- Decided to request LIS support for advertising the new master's programme at the conference.
+- Decided to seek approval for presenting at the Collective Intelligence Conference in September.
+- Decided to request support from LIS to advertise the new MASc in AI and CI at the conference.
 
 ## Action Points
 
-
-| Task                                          | Assignee | Deadline | Module | Status |
-| --------------------------------------------- | -------- | -------- | ------ | ------ |
-| Request LIS support for programme advertising | —        | —        | —      | todo   |
-
+| Task | Assignee | Deadline | Module | Status |
+|------|----------|----------|--------|--------|
+| Request LIS support for advertising the MASc in AI and CI | — | — | — | todo |
 
 ## Open Questions
 
 - What specific support from LIS is needed for the advertising?
-

@@ -37,7 +37,7 @@ def test_build_page_properties_basic():
     assert props["Title"]["title"][0]["text"]["content"] == "Review rubric"
     assert props["Description"]["rich_text"][0]["text"]["content"] == "Do something"
     assert props["Module"]["select"]["name"] == "AI-CI"
-    assert props["Status"]["select"]["name"] == "todo"
+    assert props["Status"]["status"]["name"] == "todo"
 
 
 def test_build_page_properties_with_deadline():

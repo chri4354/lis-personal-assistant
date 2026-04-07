@@ -51,7 +51,10 @@ _LAYOUT_HEAD = """\
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; }
   .htmx-indicator { display: none; }
-  .htmx-request .htmx-indicator { display: inline-block; }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator { display: inline-flex; }
+  .htmx-request button[type="submit"],
+  form.htmx-request button[type="submit"] { opacity: 0.6; pointer-events: none; cursor: wait; }
   pre { white-space: pre-wrap; word-break: break-word; }
   textarea { min-height: 12rem; }
 </style>
@@ -102,7 +105,7 @@ async def index():
     )
 
     form = f"""\
-    <form hx-post="/run" hx-target="#result" hx-indicator="#spinner" class="space-y-4">
+    <form hx-post="/run" hx-target="#result" class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Skill</label>
         <select name="skill_name"
@@ -146,10 +149,10 @@ async def index():
       </details>
 
       <button type="submit"
-              class="w-full bg-blue-600 text-white py-2.5 px-4 rounded-md font-medium hover:bg-blue-700 transition text-sm">
+              class="w-full bg-blue-600 text-white py-2.5 px-4 rounded-md font-medium hover:bg-blue-700 transition text-sm flex items-center justify-center gap-2">
+        <svg class="htmx-indicator animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
         Run skill
       </button>
-      <span id="spinner" class="htmx-indicator text-sm text-gray-400 ml-2">Processing...</span>
     </form>
     """
     body = _card("Run a Skill", form) + '<div id="result"></div>'
@@ -231,12 +234,13 @@ async def run_skill_endpoint(
         if is_notion_configured(ROOT):
             actions_json = _escape_html(json.dumps(actions, default=str))
             source = _escape_html(result.output_file or "(pasted input)")
+            spinner_svg = '<svg class="htmx-indicator animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>'
             notion_btn = (
-                f'<form hx-post="/notion/sync" hx-target="#notion-result" class="mt-4">'
+                f'<form hx-post="/notion/sync" hx-target="#notion-result" hx-indicator="closest form" class="mt-4">'
                 f'<input type="hidden" name="tasks_json" value="{actions_json}"/>'
                 f'<input type="hidden" name="source_file" value="{source}"/>'
-                f'<button type="submit" class="bg-purple-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-purple-700 transition">'
-                f'Push {len(actions)} task(s) to Notion</button>'
+                f'<button type="submit" class="bg-purple-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-purple-700 transition flex items-center gap-2">'
+                f'{spinner_svg} Push {len(actions)} task(s) to Notion</button>'
                 f'</form><div id="notion-result" class="mt-2"></div>'
             )
         else:
@@ -375,7 +379,7 @@ async def view_file(path: str):
         f'</div>'
         f'<h2 class="text-lg font-semibold mb-2">{_escape_html(file_path.name)}</h2>'
         f'<p class="text-xs text-gray-400 mb-4">{_escape_html(path)}</p>'
-        f'<form hx-post="/save" hx-target="#save-status">'
+        f'<form hx-post="/save" hx-target="#save-status" hx-indicator="closest form">'
         f'<input type="hidden" name="path" value="{_escape_html(path)}"/>'
         f'<textarea name="content" rows="20"'
         f' class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono'
@@ -383,7 +387,9 @@ async def view_file(path: str):
         f"{_escape_html(content)}</textarea>"
         f'<div class="flex gap-3 mt-3">'
         f'<button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-md text-sm'
-        f' font-medium hover:bg-blue-700 transition">Save changes</button>'
+        f' font-medium hover:bg-blue-700 transition flex items-center gap-2">'
+        f'<svg class="htmx-indicator animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>'
+        f'Save changes</button>'
         f'<span id="save-status"></span>'
         f"</div></form>"
     )

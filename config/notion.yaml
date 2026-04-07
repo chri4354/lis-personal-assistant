@@ -11,6 +11,6 @@ notion:
     status: Status
 
   status_options:
-    todo: todo
-    doing: doing
-    done: done
+    todo: Not started
+    doing: In progress
+    done: Done

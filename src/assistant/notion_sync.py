@@ -49,9 +49,9 @@ class NotionConfig:
         })
 
         self.status_options: dict[str, str] = cfg.get("status_options", {
-            "todo": "todo",
-            "doing": "doing",
-            "done": "done",
+            "todo": "Not started",
+            "doing": "In progress",
+            "done": "Done",
         })
 
 
@@ -97,10 +97,10 @@ def _build_page_properties(
             "rich_text": [{"text": {"content": task.source_file}}]
         }
 
-    # Status
+    # Status — uses Notion's "status" property type (not "select")
     status_name = config.status_options.get(task.status, task.status)
     props[pm.get("status", "Status")] = {
-        "select": {"name": status_name}
+        "status": {"name": status_name}
     }
 
     return props
@@ -198,13 +198,19 @@ def sync_tasks(
 
 
 def _fetch_existing_titles(client: Any, database_id: str) -> set[str]:
-    """Fetch all existing task titles from the database for deduplication."""
+    """Fetch existing task titles from the database for deduplication.
+
+    Uses the raw request method since notion-client v3 removed databases.query().
+    """
     titles: set[str] = set()
     try:
-        response = client.databases.query(database_id=database_id, page_size=100)
+        response = client.request(
+            path=f"databases/{database_id}/query",
+            method="POST",
+            body={"page_size": 100},
+        )
         for page in response.get("results", []):
             props = page.get("properties", {})
-            # Find the title property
             for prop_val in props.values():
                 if prop_val.get("type") == "title":
                     title_parts = prop_val.get("title", [])

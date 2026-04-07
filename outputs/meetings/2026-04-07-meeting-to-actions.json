@@ -1,0 +1,26 @@
+{
+  "title": "Approval and Advertising Strategy for Collective Intelligence Conference",
+  "date": null,
+  "summary": [
+    "The team discussed obtaining approval to present at the ACM Collective Intelligence Conference in September.",
+    "The team considered requesting support from LIS to advertise the new MASc in AI and CI at the conference."
+  ],
+  "decisions": [
+    "Decided to seek approval for presenting at the Collective Intelligence Conference in September.",
+    "Decided to request support from LIS to advertise the new MASc in AI and CI at the conference."
+  ],
+  "actions": [
+    {
+      "title": "Request LIS support for advertising the MASc in AI and CI",
+      "description": "Prepare and submit a request to LIS for support in advertising the MASc in AI and CI at the ACM Collective Intelligence Conference.",
+      "assignee": null,
+      "deadline": null,
+      "module": null,
+      "source_file": null,
+      "status": "todo"
+    }
+  ],
+  "open_questions": [
+    "What specific support from LIS is needed for the advertising?"
+  ]
+}
