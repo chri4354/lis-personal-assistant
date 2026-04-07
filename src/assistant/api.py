@@ -47,12 +47,11 @@ _LAYOUT_HEAD = """\
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>LIS Assistant</title>
 <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.17/tailwind.min.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; }
   .htmx-indicator { display: none; }
   .htmx-request .htmx-indicator { display: inline-block; }
-  .prose { max-width: 65ch; }
   pre { white-space: pre-wrap; word-break: break-word; }
   textarea { min-height: 12rem; }
 </style>
