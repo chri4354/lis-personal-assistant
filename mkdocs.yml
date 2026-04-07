@@ -26,6 +26,6 @@ markdown_extensions:
 - pymdownx.superfences
 nav:
 - Home: index.md
-- Ai And Ci:
+- Ai And Ml:
   - Week 01:
-    - Introduction to AI: modules/ai-and-ci/week-01/session-01.md
+    - Introduction to AI and Machine Learning: modules/ai-and-ml/week-01/session-01.md

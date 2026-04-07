@@ -9,11 +9,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import frontmatter as fm
 import yaml
 
 from assistant.repo import get_project_root, list_files_with_frontmatter, read_markdown
 
 logger = logging.getLogger(__name__)
+
+_IGNORE_FILENAMES = {"README.md", "index.md"}
 
 
 # ---------------------------------------------------------------------------
@@ -57,10 +60,18 @@ def _slugify(text: str) -> str:
 class PublishableFile:
     """A markdown file eligible for publication."""
 
-    def __init__(self, path: Path, meta: dict[str, Any], body: str):
+    def __init__(
+        self,
+        path: Path,
+        meta: dict[str, Any],
+        body: str,
+        *,
+        direct: bool = False,
+    ):
         self.path = path
         self.meta = meta
         self.body = body
+        self.direct = direct  # True = already lives in publish/
 
     @property
     def title(self) -> str:
@@ -80,6 +91,10 @@ class PublishableFile:
         s = self.meta.get("session")
         return int(s) if s is not None else None
 
+    @property
+    def source_label(self) -> str:
+        return "direct" if self.direct else "outputs"
+
 
 def scan_publishable(
     base_dir: Path | None = None,
@@ -87,21 +102,26 @@ def scan_publishable(
 ) -> list[PublishableFile]:
     """Find all markdown files marked for publication.
 
-    Scans outputs/ (lectures, meetings, communications, tasks) and the
-    publish/ directory itself for files with `publish: true` in frontmatter.
+    Scans two locations:
+      1. outputs/ (lectures, meetings, communications, tasks) —
+         these get copied into publish/ during build
+      2. publish/ itself (modules/, pages/) —
+         these are hand-curated and already in place
     """
     root = base_dir or get_project_root()
     config = config or PublishConfig(root)
     results: list[PublishableFile] = []
+    seen_titles: set[str] = set()
 
-    scan_dirs = [
+    # 1. Scan outputs/
+    output_dirs = [
         root / "outputs" / "lectures",
         root / "outputs" / "meetings",
         root / "outputs" / "communications",
         root / "outputs" / "tasks",
     ]
 
-    for scan_dir in scan_dirs:
+    for scan_dir in output_dirs:
         if not scan_dir.is_dir():
             continue
         for path, meta in list_files_with_frontmatter(scan_dir):
@@ -109,6 +129,26 @@ def scan_publishable(
                 continue
             _, body = read_markdown(path)
             results.append(PublishableFile(path, meta, body))
+            seen_titles.add(meta.get("title", path.stem))
+
+    # 2. Scan publish/ for directly placed content
+    publish_root = root / config.source_dir
+    for sub in ("modules", "pages"):
+        sub_dir = publish_root / sub
+        if not sub_dir.is_dir():
+            continue
+        for path, meta in list_files_with_frontmatter(sub_dir):
+            if path.name in _IGNORE_FILENAMES:
+                continue
+            if config.require_publish_flag and not meta.get("publish"):
+                continue
+            title = meta.get("title", path.stem)
+            if title in seen_titles:
+                continue
+            _, body = read_markdown(path)
+            results.append(
+                PublishableFile(path, meta, body, direct=True)
+            )
 
     return results
 
@@ -152,11 +192,17 @@ def copy_to_publish(
 ) -> list[Path]:
     """Copy publishable files into the publish/ source tree.
 
-    Returns a list of destination paths that were written.
+    Files already in publish/ (direct=True) are skipped during copy.
+    Returns a list of all destination paths (both copied and direct).
     """
     root = base_dir or get_project_root()
     config = config or PublishConfig(root)
     publish_root = root / config.source_dir
+
+    # Collect direct files before cleaning so we can restore them
+    direct_files: list[PublishableFile] = [
+        pf for pf in publishable if pf.direct
+    ]
 
     if clean:
         for sub in ("modules", "pages"):
@@ -165,13 +211,30 @@ def copy_to_publish(
                 shutil.rmtree(target)
         logger.info("Cleaned publish directory")
 
+        # Restore direct files after cleaning
+        for pf in direct_files:
+            pf.path.parent.mkdir(parents=True, exist_ok=True)
+            content = pf.body
+            if pf.meta:
+                post = fm.Post(pf.body, **pf.meta)
+                content = fm.dumps(post) + "\n"
+            pf.path.write_text(content, encoding="utf-8")
+            logger.info("Restored direct file: %s", pf.path.name)
+
     written: list[Path] = []
     for pf in publishable:
+        if pf.direct:
+            written.append(pf.path)
+            continue
         dest = _dest_path_for(pf, publish_root)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(pf.body, encoding="utf-8")
+        post = fm.Post(pf.body, **pf.meta)
+        dest.write_text(fm.dumps(post) + "\n", encoding="utf-8")
         written.append(dest)
-        logger.info("Published: %s -> %s", pf.path.name, dest.relative_to(root))
+        logger.info(
+            "Published: %s -> %s",
+            pf.path.name, dest.relative_to(root),
+        )
 
     return written
 
@@ -210,29 +273,37 @@ def _build_nav(publish_root: Path) -> list[Any]:
             # Check for module index
             mod_index = mod_dir / "index.md"
             if mod_index.exists():
-                mod_nav.append({"Overview": f"modules/{mod_dir.name}/index.md"})
+                mod_nav.append(
+                    {"Overview": f"modules/{mod_dir.name}/index.md"}
+                )
 
             # Week subdirectories
             for week_dir in sorted(mod_dir.iterdir()):
                 if not week_dir.is_dir():
-                    if week_dir.suffix == ".md" and week_dir.name != "index.md":
+                    if (
+                        week_dir.suffix == ".md"
+                        and week_dir.name != "index.md"
+                    ):
                         label = (
                             _title_from_file(week_dir)
                             or week_dir.stem.replace("-", " ").title()
                         )
-                        mod_nav.append({label: f"modules/{mod_dir.name}/{week_dir.name}"})
+                        rel = f"modules/{mod_dir.name}/{week_dir.name}"
+                        mod_nav.append({label: rel})
                     continue
 
                 week_label = week_dir.name.replace("-", " ").title()
                 week_nav: list[Any] = []
-                for session_file in sorted(week_dir.glob("*.md")):
+                for sf in sorted(week_dir.glob("*.md")):
                     s_label = (
-                        _title_from_file(session_file)
-                        or session_file.stem.replace("-", " ").title()
+                        _title_from_file(sf)
+                        or sf.stem.replace("-", " ").title()
                     )
-                    week_nav.append({
-                        s_label: f"modules/{mod_dir.name}/{week_dir.name}/{session_file.name}"
-                    })
+                    rel = (
+                        f"modules/{mod_dir.name}"
+                        f"/{week_dir.name}/{sf.name}"
+                    )
+                    week_nav.append({s_label: rel})
                 if week_nav:
                     mod_nav.append({week_label: week_nav})
 
@@ -244,7 +315,10 @@ def _build_nav(publish_root: Path) -> list[Any]:
     if pages_dir.is_dir():
         pages_nav: list[Any] = []
         for md in sorted(pages_dir.glob("*.md")):
-            label = _title_from_file(md) or md.stem.replace("-", " ").title()
+            label = (
+                _title_from_file(md)
+                or md.stem.replace("-", " ").title()
+            )
             pages_nav.append({label: f"pages/{md.name}"})
         if pages_nav:
             nav.append({"Pages": pages_nav})
@@ -253,9 +327,9 @@ def _build_nav(publish_root: Path) -> list[Any]:
 
 
 def _title_from_file(path: Path) -> str | None:
-    """Try to extract a title from a markdown file's first H1 or frontmatter."""
+    """Try to extract a title from frontmatter or first H1."""
     try:
-        meta, body = read_markdown(path)
+        meta, _ = read_markdown(path)
         if meta.get("title"):
             return str(meta["title"])
     except Exception:
@@ -321,7 +395,12 @@ def generate_mkdocs_config(
 
     out_path = root / "mkdocs.yml"
     with open(out_path, "w", encoding="utf-8") as f:
-        yaml.dump(mkdocs_cfg, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        yaml.dump(
+            mkdocs_cfg, f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
 
     logger.info("Generated mkdocs.yml with %d nav entries", len(nav))
     return out_path
@@ -332,7 +411,9 @@ def generate_mkdocs_config(
 # ---------------------------------------------------------------------------
 
 
-def build_site(base_dir: Path | None = None) -> subprocess.CompletedProcess[str]:
+def build_site(
+    base_dir: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run `mkdocs build` to generate the static site."""
     root = base_dir or get_project_root()
     return subprocess.run(
@@ -402,13 +483,15 @@ def publish_all(
             proc = build_site(root)
             result["build_ok"] = True
             result["build_output"] = proc.stdout
-            logger.info("Site built successfully to %s/", config.output_dir)
+            logger.info(
+                "Site built successfully to %s/", config.output_dir
+            )
         except FileNotFoundError:
             result["build_ok"] = False
             result["build_error"] = (
-                "mkdocs not found. Install with: pip install mkdocs-material"
+                "mkdocs not found. Install with: "
+                "pip install mkdocs-material"
             )
-            logger.error("mkdocs not found — install with: pip install mkdocs-material")
         except subprocess.CalledProcessError as exc:
             result["build_ok"] = False
             result["build_error"] = exc.stderr or str(exc)

@@ -395,6 +395,7 @@ def publish_list(
     table.add_column("Module", style="dim")
     table.add_column("Week", justify="right", style="dim")
     table.add_column("Session", justify="right", style="dim")
+    table.add_column("Source", style="dim")
 
     for pf in publishable:
         table.add_row(
@@ -403,6 +404,7 @@ def publish_list(
             pf.module or "—",
             str(pf.week) if pf.week is not None else "—",
             str(pf.session) if pf.session is not None else "—",
+            pf.source_label,
         )
 
     console.print(table)
