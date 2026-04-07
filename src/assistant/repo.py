@@ -120,9 +120,12 @@ def generate_output_filename(
         if module:
             module_slug = re.sub(r"[^a-z0-9]+", "-", str(module).lower()).strip("-")
             slug = f"{module_slug}-{slug}"
-        week = metadata.get("week")
-        if week is not None:
-            slug = f"week-{int(week):02d}-{slug}"
+        chapter = metadata.get("chapter")
+        if chapter:
+            chapter_slug = re.sub(r"[^a-z0-9]+", "-", str(chapter).lower()).strip("-")
+            slug = f"{chapter_slug}-{slug}"
+        elif metadata.get("week") is not None:
+            slug = f"week-{int(metadata['week']):02d}-{slug}"
 
     return f"{d.isoformat()}-{slug}{suffix}"
 

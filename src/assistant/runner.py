@@ -88,6 +88,7 @@ def load_input(
         date=meta_raw.get("date"),
         week=meta_raw.get("week"),
         session=meta_raw.get("session"),
+        chapter=meta_raw.get("chapter"),
     )
 
     return body, metadata

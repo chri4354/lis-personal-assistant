@@ -135,6 +135,10 @@ class PublishableFile:
         return int(s) if s is not None else None
 
     @property
+    def chapter(self) -> str | None:
+        return self.meta.get("chapter")
+
+    @property
     def source_label(self) -> str:
         return "direct" if self.direct else "outputs"
 
@@ -204,25 +208,30 @@ def scan_publishable(
 def _dest_path_for(pf: PublishableFile, publish_root: Path) -> Path:
     """Compute the destination path inside the publish tree.
 
-    Structure: publish/modules/<module-slug>/week-XX/session-XX.md
-    Falls back to publish/pages/<filename>.md for files without module info.
+    Structure (chapter-based):
+        publish/modules/<module>/<chapter-slug>/<title>.md
+    Structure (week-based, legacy):
+        publish/modules/<module>/week-XX/session-XX.md
+    Fallback:
+        publish/pages/<title>.md
     """
     if pf.module:
         mod_slug = _slugify(pf.module)
-        parts = [publish_root / "modules" / mod_slug]
+        base = publish_root / "modules" / mod_slug
 
-        if pf.week is not None:
-            parts.append(Path(f"week-{pf.week:02d}"))
+        if pf.chapter:
+            subfolder = base / _slugify(pf.chapter)
+        elif pf.week is not None:
+            subfolder = base / f"week-{pf.week:02d}"
+        else:
+            subfolder = base
 
-        if pf.session is not None:
+        if pf.session is not None and not pf.chapter:
             filename = f"session-{pf.session:02d}.md"
         else:
             filename = f"{_slugify(pf.title)}.md"
 
-        dest = parts[0]
-        for p in parts[1:]:
-            dest = dest / p
-        return dest / filename
+        return subfolder / filename
     else:
         return publish_root / "pages" / f"{_slugify(pf.title)}.md"
 

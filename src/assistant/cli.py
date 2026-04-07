@@ -58,6 +58,9 @@ def run(
     stdin: bool = typer.Option(False, "--stdin", help="Read input from stdin"),
     module: Optional[str] = typer.Option(None, "--module", "-m", help="Module name"),
     module_code: Optional[str] = typer.Option(None, "--module-code", help="Module code"),
+    chapter: Optional[str] = typer.Option(
+        None, "--chapter", "-c", help="Chapter/topic name (e.g. decision-trees)"
+    ),
     week: Optional[int] = typer.Option(None, "--week", "-w", help="Week number"),
     session: Optional[int] = typer.Option(None, "--session", "-s", help="Session number"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
@@ -81,6 +84,7 @@ def run(
             date=file_metadata.date,
             week=week if week is not None else file_metadata.week,
             session=session if session is not None else file_metadata.session,
+            chapter=chapter or file_metadata.chapter,
         )
     elif stdin:
         console.print("[dim]Reading from stdin (paste text, then Ctrl-D)...[/dim]")
@@ -89,7 +93,10 @@ def run(
             console.print("[red]No input received from stdin.[/red]")
             raise typer.Exit(1)
         source = None
-        metadata = InputMetadata(module=module, module_code=module_code, week=week, session=session)
+        metadata = InputMetadata(
+            module=module, module_code=module_code,
+            week=week, session=session, chapter=chapter,
+        )
     else:
         console.print("[red]Provide --input <file> or --stdin[/red]")
         raise typer.Exit(1)

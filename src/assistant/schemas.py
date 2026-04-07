@@ -44,6 +44,7 @@ class InputMetadata(BaseModel):
     date: datetime.date | None = None
     week: int | None = None
     session: int | None = None
+    chapter: str | None = None
 
 
 # ---------------------------------------------------------------------------

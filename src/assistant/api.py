@@ -137,6 +137,11 @@ async def index():
                    class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"/>
           </div>
           <div>
+            <label class="block text-xs text-gray-500 mb-1">Chapter</label>
+            <input name="chapter" type="text" placeholder="e.g. decision-trees"
+                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"/>
+          </div>
+          <div>
             <label class="block text-xs text-gray-500 mb-1">Week</label>
             <input name="week" type="number"
                    class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"/>
@@ -166,6 +171,7 @@ async def run_skill_endpoint(
     input_text: str = Form(""),
     module: str = Form(""),
     module_code: str = Form(""),
+    chapter: str = Form(""),
     week: str = Form(""),
     session: str = Form(""),
 ):
@@ -179,6 +185,7 @@ async def run_skill_endpoint(
     metadata = InputMetadata(
         module=module.strip() or None,
         module_code=module_code.strip() or None,
+        chapter=chapter.strip() or None,
         week=int(week) if week.strip() else None,
         session=int(session) if session.strip() else None,
     )

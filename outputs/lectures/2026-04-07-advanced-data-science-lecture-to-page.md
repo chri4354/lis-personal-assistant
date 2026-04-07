@@ -1,0 +1,55 @@
+---
+title: "Week 1 — Advanced Case Studies in Data Science and Machine Learning"
+type: lecture-summary
+module: "advanced data science"
+status: draft
+publish: false
+source_files:
+  - "(pasted input)"
+---
+
+# Week 1 — Advanced Case Studies in Data Science and Machine Learning
+
+## Overview
+
+This session explores the intricacies of decision trees, including feature importance, impurity measures, hyperparameter tuning, overfitting, and methods to improve stability such as ensemble techniques. Practical exercises and visualizations are used to deepen understanding of tree-based models.
+
+## Key Concepts
+
+- Feature importance calculation based on impurity reduction (Gini index)
+- Impurity measures: Gini impurity and entropy
+- Hyperparameters: max depth, min samples split, pruning (cost complexity)
+- Overfitting in decision trees and methods to control it
+- Sensitivity of decision trees to initial samples and instability issues
+- Ensemble methods: decision forests to improve stability and accuracy
+- Predicting class probabilities and interpreting tree splits
+
+## Examples & Case Studies
+
+- Splitting on income and calculating impurity reduction to determine feature importance
+- Visualizing a decision tree trained on the Iris dataset and analyzing feature splits
+- Using predict_proba to estimate class probabilities for new samples
+- Demonstrating overfitting by increasing tree depth and observing test accuracy decline
+- Resampling the Iris dataset to show variability in decision tree boundaries
+
+## Questions Raised
+
+- How is feature importance calculated in decision trees?
+- Why can Gini impurity exceed 0.5 when more than two classes are involved?
+- How does the number of classes affect the maximum Gini impurity?
+- What causes instability in decision trees when using different samples?
+- How can ensemble methods like random forests stabilize decision tree predictions?
+- What hyperparameters are most effective for controlling overfitting?
+
+## Clarifications
+
+- Gini impurity for two classes has a maximum of 0.5; with more classes, it can be higher (up to 2*(k-1)/k).
+- Decision trees are sensitive to initial samples, leading to different boundaries; ensemble methods help mitigate this instability.
+- Overfitting occurs when trees are too deep, capturing noise rather than the underlying pattern; pruning and limiting depth are strategies to prevent this.
+- Predict_proba outputs class probabilities based on the proportion of classes in leaf nodes, reflecting the distribution of training samples.
+
+## Further Reading
+
+- Scikit-learn documentation on Decision Trees: https://scikit-learn.org/stable/modules/tree.html
+- Understanding the Gini Impurity and Entropy: https://en.wikipedia.org/wiki/Decision_tree_learning
+- Ensemble Methods: Random Forests and Boosting techniques
