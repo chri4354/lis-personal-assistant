@@ -96,7 +96,7 @@ def _card(title: str, content: str) -> str:
 @app.get("/", response_class=HTMLResponse)
 async def index():
     """Main page: paste input, pick skill, run."""
-    skills = list_skills(ROOT)
+    skills = [s for s in list_skills(ROOT) if s.prompt_template]
     skill_options = "".join(
         f'<option value="{s.name}">{s.name} — {s.description}</option>' for s in skills
     )
@@ -222,14 +222,90 @@ async def run_skill_endpoint(
 
     output_json = json.dumps(result.output_data, indent=2, default=str)
 
+    # Show "Push to Notion" button if there are actions and Notion is configured
+    notion_btn = ""
+    actions = result.output_data.get("actions", [])
+    if actions:
+        from assistant.notion_sync import is_notion_configured
+
+        if is_notion_configured(ROOT):
+            actions_json = _escape_html(json.dumps(actions, default=str))
+            source = _escape_html(result.output_file or "(pasted input)")
+            notion_btn = (
+                f'<form hx-post="/notion/sync" hx-target="#notion-result" class="mt-4">'
+                f'<input type="hidden" name="tasks_json" value="{actions_json}"/>'
+                f'<input type="hidden" name="source_file" value="{source}"/>'
+                f'<button type="submit" class="bg-purple-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-purple-700 transition">'
+                f'Push {len(actions)} task(s) to Notion</button>'
+                f'</form><div id="notion-result" class="mt-2"></div>'
+            )
+        else:
+            notion_btn = (
+                f'<p class="text-xs text-gray-400 mt-3">'
+                f'{len(actions)} task(s) extracted. '
+                f'Configure NOTION_API_KEY and NOTION_TASK_DB_ID in .env to enable Notion sync.</p>'
+            )
+
     result_html = (
         f'{warnings_html}{file_html}'
         f'<pre class="bg-gray-900 text-green-300 rounded-md p-4 text-xs overflow-x-auto'
         f' max-h-96 overflow-y-auto">{_escape_html(output_json)}</pre>'
-        f'{usage_html}'
+        f'{notion_btn}{usage_html}'
     )
 
     return HTMLResponse(_card("Result", result_html))
+
+
+@app.post("/notion/sync", response_class=HTMLResponse)
+async def notion_sync_endpoint(
+    tasks_json: str = Form(...),
+    source_file: str = Form(""),
+):
+    """Push extracted tasks to Notion."""
+    from assistant.notion_sync import sync_tasks
+    from assistant.schemas import TaskItem
+
+    try:
+        tasks_raw = json.loads(tasks_json)
+        tasks = [TaskItem(**t) for t in tasks_raw]
+    except Exception as exc:
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 rounded-md p-3 text-sm">'
+            f"Failed to parse tasks: {exc}</div>"
+        )
+
+    try:
+        result = sync_tasks(
+            tasks=tasks,
+            source_file=source_file or None,
+            base_dir=ROOT,
+        )
+    except Exception as exc:
+        logger.exception("Notion sync failed")
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 rounded-md p-3 text-sm">'
+            f"Notion sync error: {exc}</div>"
+        )
+
+    if result.errors:
+        error_items = "".join(f"<li>{_escape_html(e)}</li>" for e in result.errors)
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 rounded-md p-3 text-sm">'
+            f'<ul class="list-disc ml-4">{error_items}</ul></div>'
+        )
+
+    parts = []
+    if result.created:
+        items = "".join(f"<li>{_escape_html(t)}</li>" for t in result.created)
+        parts.append(f'<p class="font-medium text-green-700">Created:</p><ul class="list-disc ml-4 text-sm">{items}</ul>')
+    if result.skipped:
+        items = "".join(f"<li>{_escape_html(t)}</li>" for t in result.skipped)
+        parts.append(f'<p class="font-medium text-gray-500">Skipped (already exist):</p><ul class="list-disc ml-4 text-sm">{items}</ul>')
+
+    return HTMLResponse(
+        f'<div class="bg-green-50 border border-green-200 rounded-md p-3 text-sm">'
+        f'{"".join(parts)}</div>'
+    )
 
 
 @app.get("/history", response_class=HTMLResponse)

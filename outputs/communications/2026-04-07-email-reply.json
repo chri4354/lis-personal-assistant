@@ -1,0 +1,8 @@
+{
+  "subject_suggestion": "Re: Extension request",
+  "body": "Thank you for reaching out. Extensions are handled via mitigating circumstances.",
+  "grounding_sources": [
+    "knowledge/policies/extensions.md"
+  ],
+  "warnings": []
+}

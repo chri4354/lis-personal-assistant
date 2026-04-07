@@ -1,5 +1,5 @@
 notion:
-  enabled: false
+  # Notion sync is auto-enabled when NOTION_API_KEY and NOTION_TASK_DB_ID are set in .env
   task_database_id: ""
 
   property_map:

@@ -1,0 +1,22 @@
+{
+  "title": "Test Meeting",
+  "date": "2026-04-01",
+  "summary": [
+    "Discussed the plan"
+  ],
+  "decisions": [
+    "Go ahead"
+  ],
+  "actions": [
+    {
+      "title": "Write tests",
+      "description": "Add unit tests",
+      "assignee": "Dev",
+      "deadline": null,
+      "module": null,
+      "source_file": null,
+      "status": "todo"
+    }
+  ],
+  "open_questions": []
+}

@@ -23,6 +23,7 @@ from assistant.schemas import (
     InputMetadata,
     SkillDefinition,
     SkillResult,
+    TaskItem,
 )
 from assistant.templates import render_output, render_prompt
 
@@ -112,6 +113,12 @@ def run_skill(
     root = base_dir or get_project_root()
     skill = load_skill(skill_name, root)
 
+    if not skill.prompt_template:
+        raise ValueError(
+            f"Skill '{skill_name}' has no prompt_template and cannot be run directly. "
+            f"It may be an integration skill (e.g. notion_sync) triggered by other skills."
+        )
+
     meta_dict = metadata.model_dump(exclude_none=True) if metadata else {}
     source_label = source_file or "(pasted input)"
 
@@ -195,6 +202,36 @@ def run_skill(
         write_text(output_path, rendered_md)
         output_file = str(output_path.relative_to(root))
         logger.info("Wrote output to %s", output_file)
+
+        # Save structured data as companion JSON for downstream use (e.g. notion sync)
+        json_path = output_path.with_suffix(".json")
+        write_text(json_path, json.dumps(output_data, indent=2, default=str) + "\n")
+        logger.debug("Wrote companion JSON to %s", json_path.name)
+
+    # 6. Auto-sync tasks to Notion if skill produces actions and notion_tasks is enabled
+    notion_output_cfg = skill.outputs.get("notion_tasks")
+    if notion_output_cfg and notion_output_cfg.enabled and "actions" in output_data:
+        try:
+            from assistant.notion_sync import is_notion_configured, sync_tasks
+
+            if is_notion_configured(root):
+                tasks = [TaskItem(**a) for a in output_data["actions"]]
+                if tasks:
+                    sync_result = sync_tasks(
+                        tasks=tasks,
+                        source_file=output_file or source_label,
+                        base_dir=root,
+                    )
+                    logger.info("Notion sync: %s", sync_result.summary)
+                    if sync_result.errors:
+                        warnings.extend(
+                            f"Notion: {e}" for e in sync_result.errors
+                        )
+            else:
+                logger.debug("Notion not configured, skipping task sync")
+        except Exception as exc:
+            logger.warning("Notion sync failed: %s", exc)
+            warnings.append(f"Notion sync failed: {exc}")
 
     return SkillResult(
         skill_name=skill_name,

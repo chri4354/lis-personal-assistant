@@ -135,6 +135,100 @@ def run(
     console.print("\n[bold]Output preview:[/bold]")
     console.print_json(json.dumps(result.output_data, indent=2, default=str))
 
+    # Notion sync info
+    actions = result.output_data.get("actions", [])
+    if actions:
+        from assistant.notion_sync import is_notion_configured
+
+        if is_notion_configured(root):
+            console.print(
+                f"\n[dim]{len(actions)} task(s) were auto-synced to Notion "
+                f"(see warnings above if any failed).[/dim]"
+            )
+        else:
+            console.print(
+                f"\n[dim]{len(actions)} task(s) extracted. "
+                f"Configure NOTION_API_KEY and NOTION_TASK_DB_ID in .env to enable auto-sync.[/dim]"
+            )
+
+
+# ---------------------------------------------------------------------------
+# notion command
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def notion(
+    input_file: Path = typer.Argument(help="Path to a meeting output file containing actions"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview what would be synced"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+) -> None:
+    """Manually push tasks from an output file to Notion."""
+    _setup_logging(verbose)
+    root = get_project_root()
+
+    path = input_file if input_file.is_absolute() else root / input_file
+    if not path.exists():
+        console.print(f"[red]File not found:[/red] {path}")
+        raise typer.Exit(1)
+
+    from assistant.repo import read_markdown
+
+    meta, body = read_markdown(path)
+
+    # Try to parse actions from the output file's JSON data or re-read from the source
+    # For now, re-run extraction from the output markdown isn't ideal,
+    # so we look for the output_data in the stored file's structure.
+    # Better approach: store output_data as JSON alongside the markdown.
+    # For now, let the user pass the output file and we'll extract tasks from the table.
+    console.print(f"[bold]Syncing tasks from:[/bold] {input_file}")
+
+    from assistant.notion_sync import is_notion_configured, sync_tasks
+    from assistant.schemas import TaskItem
+
+    if not is_notion_configured(root):
+        console.print(
+            "[red]Notion is not configured.[/red] "
+            "Set NOTION_API_KEY and NOTION_TASK_DB_ID in your .env file."
+        )
+        raise typer.Exit(1)
+
+    # Try to find a companion .json file with the structured data
+    json_path = path.with_suffix(".json")
+    if not json_path.exists():
+        console.print(
+            "[red]No companion .json file found.[/red] "
+            "Task sync requires structured data. Run the meeting skill first, "
+            "or use the web UI to push tasks to Notion."
+        )
+        raise typer.Exit(1)
+
+    data = json.loads(json_path.read_text())
+    actions_raw = data.get("actions", [])
+    if not actions_raw:
+        console.print("[yellow]No actions found in the output data.[/yellow]")
+        raise typer.Exit(0)
+
+    tasks = [TaskItem(**a) for a in actions_raw]
+    source = str(input_file)
+
+    if dry_run:
+        console.print("[dim]DRY RUN — no tasks will be created in Notion.[/dim]\n")
+
+    result = sync_tasks(tasks=tasks, source_file=source, dry_run=dry_run, base_dir=root)
+
+    if result.created:
+        for t in result.created:
+            console.print(f"  [green]+ {t}[/green]")
+    if result.skipped:
+        for t in result.skipped:
+            console.print(f"  [dim]~ {t} (duplicate)[/dim]")
+    if result.errors:
+        for e in result.errors:
+            console.print(f"  [red]! {e}[/red]")
+
+    console.print(f"\n[bold]Summary:[/bold] {result.summary}")
+
 
 # ---------------------------------------------------------------------------
 # skills command
