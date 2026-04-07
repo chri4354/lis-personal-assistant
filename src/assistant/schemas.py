@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 
 class SkillOutputConfig(BaseModel):
-    path: str
+    path: str | None = None
     template: str | None = None
     enabled: bool = True
 

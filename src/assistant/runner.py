@@ -13,6 +13,7 @@ from assistant.llm import LLMClient
 from assistant.repo import (
     generate_output_filename,
     get_project_root,
+    read_markdown,
     resolve_output_path,
     write_text,
 )
@@ -66,6 +67,32 @@ def list_skills(base_dir: Path | None = None) -> list[SkillDefinition]:
 
 
 # ---------------------------------------------------------------------------
+# Input loading
+# ---------------------------------------------------------------------------
+
+
+def load_input(
+    input_path: Path,
+    base_dir: Path | None = None,
+) -> tuple[str, InputMetadata]:
+    """Load input text and metadata from a markdown file.
+
+    Returns (body_text, metadata) where metadata is extracted from frontmatter.
+    """
+    meta_raw, body = read_markdown(input_path)
+
+    metadata = InputMetadata(
+        module=meta_raw.get("module"),
+        module_code=meta_raw.get("module_code"),
+        date=meta_raw.get("date"),
+        week=meta_raw.get("week"),
+        session=meta_raw.get("session"),
+    )
+
+    return body, metadata
+
+
+# ---------------------------------------------------------------------------
 # Skill execution
 # ---------------------------------------------------------------------------
 
@@ -74,6 +101,7 @@ def run_skill(
     skill_name: str,
     input_text: str,
     metadata: InputMetadata | None = None,
+    source_file: str | None = None,
     llm_client: LLMClient | None = None,
     base_dir: Path | None = None,
 ) -> SkillResult:
@@ -85,6 +113,7 @@ def run_skill(
     skill = load_skill(skill_name, root)
 
     meta_dict = metadata.model_dump(exclude_none=True) if metadata else {}
+    source_label = source_file or "(pasted input)"
 
     # 1. Retrieve context documents
     context_docs = retrieve_context(
@@ -151,7 +180,7 @@ def run_skill(
     # 5. Write markdown output
     output_file: str | None = None
     md_output_cfg = skill.outputs.get("markdown_note")
-    if md_output_cfg and md_output_cfg.template:
+    if md_output_cfg and md_output_cfg.path and md_output_cfg.template:
         filename = generate_output_filename(skill_name, meta_dict)
         output_path = resolve_output_path(root, md_output_cfg.path, filename)
 
@@ -159,7 +188,7 @@ def run_skill(
             template_path=md_output_cfg.template,
             data=output_data,
             metadata=meta_dict,
-            source_file="(pasted input)",
+            source_file=source_label,
             base_dir=root,
         )
 
