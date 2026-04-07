@@ -1,0 +1,31 @@
+site_name: Programme Course Book
+docs_dir: publish
+site_dir: site
+theme:
+  name: material
+  palette:
+  - scheme: default
+    primary: indigo
+    toggle:
+      icon: material/brightness-7
+      name: Switch to dark mode
+  - scheme: slate
+    primary: indigo
+    toggle:
+      icon: material/brightness-4
+      name: Switch to light mode
+  features:
+  - navigation.sections
+  - navigation.expand
+  - toc.integrate
+markdown_extensions:
+- tables
+- toc
+- admonition
+- pymdownx.details
+- pymdownx.superfences
+nav:
+- Home: index.md
+- Ai And Ci:
+  - Week 01:
+    - Introduction to AI: modules/ai-and-ci/week-01/session-01.md
