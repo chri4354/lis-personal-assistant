@@ -1,5 +1,6 @@
 ---
 module: AI and ML
+remote: "https://github.com/chri4354/data-science-and-machine-learning.git"
 publish: true
 session: 1
 status: final
