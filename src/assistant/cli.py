@@ -476,6 +476,77 @@ def publish_preview(
         console.print("\n[dim]Preview stopped.[/dim]")
 
 
+@publish_app.command(name="deploy")
+def publish_deploy(
+    module: Optional[str] = typer.Option(
+        None, "--module", "-m", help="Deploy only this module slug"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be deployed without pushing"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Deploy modules to their remote GitHub repos."""
+    _setup_logging(verbose)
+    from assistant.publisher import deploy_all, list_module_configs
+
+    root = get_project_root()
+    configs = list_module_configs(root)
+
+    deployable = [c for c in configs if c.has_remote]
+    if module:
+        deployable = [c for c in deployable if c.slug == module]
+
+    if not deployable:
+        console.print("[yellow]No modules with a remote configured.[/yellow]")
+        console.print(
+            "[dim]Add a module.yaml with a 'remote' field "
+            "in publish/modules/<module>/[/dim]"
+        )
+        raise typer.Exit(0)
+
+    if dry_run:
+        console.print("[bold]DRY RUN — no changes will be pushed.[/bold]\n")
+
+    results = deploy_all(root, module_filter=module, dry_run=dry_run)
+
+    for r in results:
+        status = r.get("status", "unknown")
+        slug = r.get("module", "?")
+
+        if status == "deployed":
+            console.print(
+                f"  [green]+ {slug}[/green] → {r['remote']} "
+                f"({r.get('files', 0)} files)"
+            )
+        elif status == "up-to-date":
+            console.print(f"  [dim]= {slug} — already up to date[/dim]")
+        elif status == "dry-run":
+            files = r.get("would_deploy", [])
+            console.print(
+                f"  [cyan]~ {slug}[/cyan] → {r['remote']} "
+                f"({len(files)} files)"
+            )
+            for f in files:
+                console.print(f"    [dim]{f}[/dim]")
+        elif status == "skipped":
+            console.print(
+                f"  [dim]- {slug} — {r.get('reason', 'skipped')}[/dim]"
+            )
+        elif status == "error":
+            console.print(
+                f"  [red]! {slug}[/red] — {r.get('error', 'unknown error')}"
+            )
+
+    deployed = sum(1 for r in results if r.get("status") == "deployed")
+    errors = sum(1 for r in results if r.get("status") == "error")
+    if deployed:
+        console.print(f"\n[green]{deployed} module(s) deployed.[/green]")
+    if errors:
+        console.print(f"[red]{errors} module(s) failed.[/red]")
+        raise typer.Exit(1)
+
+
 # ---------------------------------------------------------------------------
 # serve command
 # ---------------------------------------------------------------------------

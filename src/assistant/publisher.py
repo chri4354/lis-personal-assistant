@@ -16,7 +16,7 @@ from assistant.repo import get_project_root, list_files_with_frontmatter, read_m
 
 logger = logging.getLogger(__name__)
 
-_IGNORE_FILENAMES = {"README.md", "index.md"}
+_IGNORE_FILENAMES = {"README.md", "index.md", "module.yaml"}
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +45,49 @@ class PublishConfig:
         self.require_publish_flag: bool = cfg.get("filters", {}).get(
             "require_frontmatter_publish", True
         )
+
+
+class ModuleConfig:
+    """Per-module deployment config loaded from module.yaml."""
+
+    def __init__(self, module_dir: Path):
+        self.module_dir = module_dir
+        self.slug = module_dir.name
+        cfg_path = module_dir / "module.yaml"
+
+        cfg: dict[str, Any] = {}
+        if cfg_path.exists():
+            with open(cfg_path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+
+        self.site_name: str = cfg.get(
+            "site_name",
+            module_dir.name.replace("-", " ").title(),
+        )
+        self.remote: str = cfg.get("remote", "")
+        self.site_url: str = cfg.get("site_url", "")
+        self.branch: str = cfg.get("branch", "main")
+
+    @property
+    def has_remote(self) -> bool:
+        return bool(self.remote)
+
+
+def list_module_configs(
+    base_dir: Path | None = None,
+    config: PublishConfig | None = None,
+) -> list[ModuleConfig]:
+    """Return ModuleConfig for every module directory in publish/."""
+    root = base_dir or get_project_root()
+    config = config or PublishConfig(root)
+    modules_dir = root / config.source_dir / "modules"
+    if not modules_dir.is_dir():
+        return []
+    return [
+        ModuleConfig(d)
+        for d in sorted(modules_dir.iterdir())
+        if d.is_dir()
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -498,3 +541,306 @@ def publish_all(
             logger.error("mkdocs build failed: %s", exc.stderr)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Per-module remote deployment
+# ---------------------------------------------------------------------------
+
+_DEPLOY_WORKFLOW = """\
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install mkdocs-material
+      - run: mkdocs build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+"""
+
+
+def _build_module_nav(docs_dir: Path) -> list[Any]:
+    """Build a nav tree for a single module's docs/ directory."""
+    nav: list[Any] = []
+    index = docs_dir / "index.md"
+    if index.exists():
+        nav.append({"Home": "index.md"})
+
+    for entry in sorted(docs_dir.iterdir()):
+        if not entry.is_dir():
+            if entry.suffix == ".md" and entry.name != "index.md":
+                label = (
+                    _title_from_file(entry)
+                    or entry.stem.replace("-", " ").title()
+                )
+                nav.append({label: entry.name})
+            continue
+
+        week_label = entry.name.replace("-", " ").title()
+        week_nav: list[Any] = []
+        for sf in sorted(entry.glob("*.md")):
+            s_label = (
+                _title_from_file(sf)
+                or sf.stem.replace("-", " ").title()
+            )
+            week_nav.append({s_label: f"{entry.name}/{sf.name}"})
+        if week_nav:
+            nav.append({week_label: week_nav})
+
+    return nav
+
+
+def _generate_module_mkdocs(
+    clone_dir: Path,
+    mod_cfg: ModuleConfig,
+    pub_cfg: PublishConfig,
+) -> Path:
+    """Write mkdocs.yml inside a cloned module repo."""
+    docs_dir = clone_dir / "docs"
+    nav = _build_module_nav(docs_dir)
+
+    mkdocs_cfg: dict[str, Any] = {
+        "site_name": mod_cfg.site_name,
+        "docs_dir": "docs",
+        "site_dir": "site",
+        "theme": {
+            "name": pub_cfg.theme,
+            "palette": [
+                {
+                    "scheme": "default",
+                    "primary": "indigo",
+                    "toggle": {
+                        "icon": "material/brightness-7",
+                        "name": "Switch to dark mode",
+                    },
+                },
+                {
+                    "scheme": "slate",
+                    "primary": "indigo",
+                    "toggle": {
+                        "icon": "material/brightness-4",
+                        "name": "Switch to light mode",
+                    },
+                },
+            ],
+            "features": [
+                "navigation.sections",
+                "navigation.expand",
+                "toc.integrate",
+            ],
+        },
+        "markdown_extensions": [
+            "tables",
+            "toc",
+            "admonition",
+            "pymdownx.details",
+            "pymdownx.superfences",
+        ],
+    }
+
+    if mod_cfg.site_url:
+        mkdocs_cfg["site_url"] = mod_cfg.site_url
+    if nav:
+        mkdocs_cfg["nav"] = nav
+
+    out_path = clone_dir / "mkdocs.yml"
+    with open(out_path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            mkdocs_cfg, f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    return out_path
+
+
+def deploy_module(
+    mod_cfg: ModuleConfig,
+    base_dir: Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Deploy a single module to its remote GitHub repo.
+
+    Steps: clone -> copy docs -> generate mkdocs.yml -> add workflow -> commit -> push.
+    """
+    import tempfile
+
+    root = base_dir or get_project_root()
+    pub_cfg = PublishConfig(root)
+    result: dict[str, Any] = {
+        "module": mod_cfg.slug,
+        "remote": mod_cfg.remote,
+    }
+
+    if not mod_cfg.has_remote:
+        result["status"] = "skipped"
+        result["reason"] = "no remote configured"
+        return result
+
+    source_dir = mod_cfg.module_dir
+    md_files = [
+        f for f in source_dir.rglob("*.md")
+        if f.name not in _IGNORE_FILENAMES
+    ]
+    result["files"] = len(md_files)
+
+    if not md_files:
+        result["status"] = "skipped"
+        result["reason"] = "no markdown files to deploy"
+        return result
+
+    if dry_run:
+        result["status"] = "dry-run"
+        result["would_deploy"] = [
+            str(f.relative_to(source_dir)) for f in md_files
+        ]
+        return result
+
+    with tempfile.TemporaryDirectory() as tmp:
+        clone_dir = Path(tmp) / "repo"
+
+        # Clone (try branch first, fall back to default)
+        try:
+            subprocess.run(
+                [
+                    "git", "clone", "--depth", "1",
+                    "-b", mod_cfg.branch,
+                    mod_cfg.remote, str(clone_dir),
+                ],
+                capture_output=True, text=True, check=True,
+            )
+        except subprocess.CalledProcessError:
+            try:
+                subprocess.run(
+                    ["git", "clone", mod_cfg.remote, str(clone_dir)],
+                    capture_output=True, text=True, check=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                result["status"] = "error"
+                result["error"] = f"git clone failed: {exc.stderr}"
+                return result
+
+        # Clean existing docs/
+        docs_dir = clone_dir / "docs"
+        if docs_dir.is_dir():
+            shutil.rmtree(docs_dir)
+        docs_dir.mkdir(parents=True)
+
+        # Copy markdown files preserving directory structure
+        for md_file in md_files:
+            rel = md_file.relative_to(source_dir)
+            dest = docs_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(md_file, dest)
+
+        # Ensure index.md exists
+        index_path = docs_dir / "index.md"
+        if not index_path.exists():
+            index_path.write_text(
+                f"# {mod_cfg.site_name}\n\n"
+                f"Welcome to the {mod_cfg.site_name} course book.\n",
+                encoding="utf-8",
+            )
+
+        # Generate mkdocs.yml
+        _generate_module_mkdocs(clone_dir, mod_cfg, pub_cfg)
+
+        # Add GitHub Actions workflow
+        wf_dir = clone_dir / ".github" / "workflows"
+        wf_dir.mkdir(parents=True, exist_ok=True)
+        (wf_dir / "deploy-pages.yml").write_text(
+            _DEPLOY_WORKFLOW, encoding="utf-8",
+        )
+
+        # Git add, commit, push
+        def _git(*args: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", *args],
+                cwd=str(clone_dir),
+                capture_output=True, text=True, check=True,
+            )
+
+        _git("add", "-A")
+
+        status_proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(clone_dir),
+            capture_output=True, text=True,
+        )
+        if not status_proc.stdout.strip():
+            result["status"] = "up-to-date"
+            return result
+
+        _git("commit", "-m", f"Update {mod_cfg.site_name} content")
+
+        try:
+            _git("push", "origin", mod_cfg.branch)
+            result["status"] = "deployed"
+        except subprocess.CalledProcessError as exc:
+            result["status"] = "error"
+            result["error"] = f"git push failed: {exc.stderr}"
+
+    return result
+
+
+def deploy_all(
+    base_dir: Path | None = None,
+    module_filter: str | None = None,
+    dry_run: bool = False,
+) -> list[dict[str, Any]]:
+    """Deploy all modules (or one) that have remotes configured."""
+    root = base_dir or get_project_root()
+    configs = list_module_configs(root)
+    results: list[dict[str, Any]] = []
+
+    for mod_cfg in configs:
+        if module_filter and mod_cfg.slug != module_filter:
+            continue
+        if not mod_cfg.has_remote:
+            logger.debug(
+                "Skipping %s -- no remote configured", mod_cfg.slug,
+            )
+            continue
+        logger.info(
+            "Deploying module: %s -> %s",
+            mod_cfg.slug, mod_cfg.remote,
+        )
+        r = deploy_module(mod_cfg, root, dry_run=dry_run)
+        results.append(r)
+
+    return results

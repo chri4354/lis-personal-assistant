@@ -200,6 +200,74 @@ All publish settings live in `config/publish.yaml`:
 
 ---
 
+## Per-module remote deployment
+
+Each module can publish to its **own separate GitHub repo** with its own GitHub Pages site. This is useful when you want each module to have a clean, standalone course book URL (e.g. `https://chri4354.github.io/ai-and-ml-coursebook/`).
+
+### Setting up a module remote
+
+Add a `module.yaml` file inside the module's publish directory:
+
+```yaml
+# publish/modules/ai-and-ml/module.yaml
+site_name: "AI and Machine Learning"
+remote: "https://github.com/chri4354/ai-and-ml-coursebook.git"
+site_url: "https://chri4354.github.io/ai-and-ml-coursebook"
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `site_name` | No | Title for the module's site (defaults to folder name) |
+| `remote` | Yes | GitHub repo URL to push content to |
+| `site_url` | No | Final published URL (used in mkdocs.yml) |
+| `branch` | No | Target branch (defaults to `main`) |
+
+The target repo can be empty or pre-existing. The deploy command will set up `docs/`, `mkdocs.yml`, and the GitHub Actions workflow automatically.
+
+### Deploying
+
+**From the CLI:**
+
+```bash
+# Deploy all modules that have remotes configured
+assistant publish deploy
+
+# Deploy a specific module
+assistant publish deploy --module ai-and-ml
+
+# Preview what would be deployed without pushing
+assistant publish deploy --dry-run
+```
+
+**From the web UI:**
+
+1. Go to http://127.0.0.1:8000/publish
+2. Modules with remotes appear in the "Deploy to Remote Repos" section
+3. Click **Deploy** next to the module you want to push
+
+### What happens during deploy
+
+1. The target repo is cloned into a temp directory
+2. The module's markdown files are copied into `docs/`
+3. A standalone `mkdocs.yml` is generated with nav for that module only
+4. A GitHub Actions workflow (`deploy-pages.yml`) is added
+5. Changes are committed and pushed
+6. GitHub Actions in the target repo builds and deploys the site
+
+### One-time setup for target repos
+
+For each target repo, enable GitHub Pages:
+
+1. Go to **Settings -> Pages** in the target repo
+2. Under **Source**, select **GitHub Actions**
+3. The first `publish deploy` push will trigger the workflow
+
+### Modules without remotes
+
+Modules without a `module.yaml` (or without a `remote` field) are unaffected. They continue to work in the local combined site built by `publish build`.
+
+---
+
 ## Tips
 
 - **Edit before publishing**: review and edit output files in the web UI (`/view`) or your editor before adding `publish: true`

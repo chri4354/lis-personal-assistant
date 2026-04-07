@@ -514,7 +514,41 @@ async def publish_page():
         f'<div id="build-result" class="mt-3"></div>'
     )
 
+    # Per-module deploy section
+    from assistant.publisher import list_module_configs
+
+    mod_configs = list_module_configs(ROOT)
+    deployable = [m for m in mod_configs if m.has_remote]
+
+    deploy_html = ""
+    if deployable:
+        deploy_rows = ""
+        for mc in deployable:
+            deploy_rows += (
+                f"<tr class='border-b border-gray-100'>"
+                f"<td class='py-2 px-3 text-sm font-medium'>{_escape_html(mc.site_name)}</td>"
+                f"<td class='py-2 px-3 text-sm text-gray-500'><code class='text-xs'>{_escape_html(mc.remote)}</code></td>"
+                f"<td class='py-2 px-3 text-right'>"
+                f"<form hx-post='/publish/deploy' hx-target='#deploy-result-{mc.slug}' class='inline'>"
+                f"<input type='hidden' name='module' value='{_escape_html(mc.slug)}'/>"
+                f"<button type='submit' class='bg-indigo-600 text-white py-1 px-3 rounded text-xs font-medium hover:bg-indigo-700 transition flex items-center gap-1'>"
+                f"{spinner_svg} Deploy</button>"
+                f"</form></td></tr>"
+                f"<tr><td colspan='3'><div id='deploy-result-{mc.slug}' class='mb-1'></div></td></tr>"
+            )
+
+        deploy_table = (
+            '<table class="w-full text-left">'
+            "<thead><tr class='border-b-2 border-gray-200'>"
+            "<th class='py-2 px-3 text-xs text-gray-500 uppercase'>Module</th>"
+            "<th class='py-2 px-3 text-xs text-gray-500 uppercase'>Remote</th>"
+            "<th class='py-2 px-3 text-xs text-gray-500 uppercase text-right'>Action</th>"
+            f"</tr></thead><tbody>{deploy_rows}</tbody></table>"
+        )
+        deploy_html = _card("Deploy to Remote Repos", deploy_table)
+
     body = _card(f"Publishable Files ({len(publishable)})", table_html + build_form)
+    body += deploy_html
     return _page(body)
 
 
@@ -553,6 +587,58 @@ async def publish_build_endpoint():
     return HTMLResponse(
         f'<div class="{css} border rounded-md p-4 text-sm">{"".join(parts)}</div>'
     )
+
+
+@app.post("/publish/deploy", response_class=HTMLResponse)
+async def publish_deploy_endpoint(
+    module: str = Form(...),
+):
+    """Deploy a single module to its remote repo."""
+    from assistant.publisher import ModuleConfig, PublishConfig, deploy_module
+
+    config = PublishConfig(ROOT)
+    mod_dir = ROOT / config.source_dir / "modules" / module
+
+    if not mod_dir.is_dir():
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 '
+            f'rounded-md p-3 text-sm">Module not found: {_escape_html(module)}</div>'
+        )
+
+    mod_cfg = ModuleConfig(mod_dir)
+    if not mod_cfg.has_remote:
+        return HTMLResponse(
+            f'<div class="bg-yellow-50 border border-yellow-200 text-yellow-700 '
+            f'rounded-md p-3 text-sm">No remote configured for {_escape_html(module)}</div>'
+        )
+
+    try:
+        result = deploy_module(mod_cfg, ROOT)
+    except Exception as exc:
+        logger.exception("Deploy failed for %s", module)
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 '
+            f'rounded-md p-3 text-sm">Deploy error: {_escape_html(str(exc))}</div>'
+        )
+
+    status = result.get("status", "unknown")
+    if status == "deployed":
+        return HTMLResponse(
+            f'<div class="bg-green-50 border border-green-200 text-green-700 '
+            f'rounded-md p-3 text-sm">Deployed {result.get("files", 0)} '
+            f'file(s) to {_escape_html(mod_cfg.remote)}</div>'
+        )
+    elif status == "up-to-date":
+        return HTMLResponse(
+            '<div class="bg-gray-50 border border-gray-200 text-gray-600 '
+            'rounded-md p-3 text-sm">Already up to date.</div>'
+        )
+    else:
+        err = result.get("error", result.get("reason", "unknown"))
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 '
+            f'rounded-md p-3 text-sm">Deploy failed: {_escape_html(str(err))}</div>'
+        )
 
 
 # ---------------------------------------------------------------------------
