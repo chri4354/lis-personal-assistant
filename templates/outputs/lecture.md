@@ -1,12 +1,24 @@
 ---
 title: "{{ data.title }}"
 type: lecture-summary
-{% if metadata and metadata.module %}module: "{{ metadata.module }}"{% endif %}
-{% if metadata and metadata.module_code %}module_code: "{{ metadata.module_code }}"{% endif %}
-{% if metadata and metadata.date %}date: {{ metadata.date }}{% endif %}
-{% if metadata and metadata.chapter %}chapter: "{{ metadata.chapter }}"{% endif %}
-{% if metadata and metadata.week %}week: {{ metadata.week }}{% endif %}
-{% if metadata and metadata.session %}session: {{ metadata.session }}{% endif %}
+{% if metadata and metadata.module -%}
+module: "{{ metadata.module }}"
+{% endif -%}
+{% if metadata and metadata.module_code -%}
+module_code: "{{ metadata.module_code }}"
+{% endif -%}
+{% if metadata and metadata.date -%}
+date: {{ metadata.date }}
+{% endif -%}
+{% if metadata and metadata.chapter -%}
+chapter: "{{ metadata.chapter }}"
+{% endif -%}
+{% if metadata and metadata.week -%}
+week: {{ metadata.week }}
+{% endif -%}
+{% if metadata and metadata.session -%}
+session: {{ metadata.session }}
+{% endif -%}
 status: draft
 publish: false
 source_files:

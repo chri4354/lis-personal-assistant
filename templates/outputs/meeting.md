@@ -2,8 +2,12 @@
 title: "{{ data.title }}"
 type: meeting-summary
 date: {{ data.date or "unknown" }}
-{% if metadata and metadata.module %}module: "{{ metadata.module }}"{% endif %}
-{% if metadata and metadata.module_code %}module_code: "{{ metadata.module_code }}"{% endif %}
+{% if metadata and metadata.module -%}
+module: "{{ metadata.module }}"
+{% endif -%}
+{% if metadata and metadata.module_code -%}
+module_code: "{{ metadata.module_code }}"
+{% endif -%}
 status: draft
 source_files:
   - "{{ source_file }}"

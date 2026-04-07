@@ -1,7 +1,8 @@
 ---
 title: "Week 6 — Advanced Decision Tree Concepts and Hyperparameter Tuning"
 type: lecture-summary
-chapter: "decision-trees"status: draft
+chapter: "decision-trees"
+status: draft
 publish: true
 source_files:
   - "(pasted input)"
