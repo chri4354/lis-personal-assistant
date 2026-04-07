@@ -358,6 +358,127 @@ def usage() -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# publish commands
+# ---------------------------------------------------------------------------
+
+publish_app = typer.Typer(
+    name="publish",
+    help="Publication pipeline — build and preview the course book site.",
+    no_args_is_help=True,
+)
+app.add_typer(publish_app, name="publish")
+
+
+@publish_app.command(name="list")
+def publish_list(
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """List files eligible for publication (publish: true in frontmatter)."""
+    _setup_logging(verbose)
+    from assistant.publisher import PublishConfig, scan_publishable
+
+    root = get_project_root()
+    config = PublishConfig(root)
+    publishable = scan_publishable(root, config)
+
+    if not publishable:
+        console.print("[yellow]No publishable files found.[/yellow]")
+        console.print(
+            "[dim]Add 'publish: true' to the frontmatter of lecture/output files.[/dim]"
+        )
+        raise typer.Exit(0)
+
+    table = Table(title=f"Publishable Files ({len(publishable)})")
+    table.add_column("File", style="cyan")
+    table.add_column("Title")
+    table.add_column("Module", style="dim")
+    table.add_column("Week", justify="right", style="dim")
+    table.add_column("Session", justify="right", style="dim")
+
+    for pf in publishable:
+        table.add_row(
+            str(pf.path.relative_to(root)),
+            pf.title,
+            pf.module or "—",
+            str(pf.week) if pf.week is not None else "—",
+            str(pf.session) if pf.session is not None else "—",
+        )
+
+    console.print(table)
+
+
+@publish_app.command(name="build")
+def publish_build(
+    clean: bool = typer.Option(True, "--clean/--no-clean", help="Clean publish dir first"),
+    skip_build: bool = typer.Option(
+        False, "--skip-build", help="Only copy files and generate config"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Build the course book site: scan → copy → generate config → mkdocs build."""
+    _setup_logging(verbose)
+    from assistant.publisher import publish_all
+
+    root = get_project_root()
+
+    console.print("[bold]Building publication site...[/bold]\n")
+    result = publish_all(root, clean=clean, build=not skip_build)
+
+    console.print(f"  Scanned:   [cyan]{result['scanned']}[/cyan] publishable files")
+    console.print(f"  Published: [green]{result['published']}[/green] files copied to publish/")
+    console.print(f"  Config:    {result['mkdocs_config']}")
+
+    if result.get("files"):
+        console.print("\n[dim]Published files:[/dim]")
+        for f in result["files"]:
+            console.print(f"  [dim]{f}[/dim]")
+
+    if "build_ok" in result:
+        if result["build_ok"]:
+            console.print("\n[green]Site built successfully.[/green]")
+        else:
+            console.print(f"\n[red]Build failed:[/red] {result.get('build_error', 'unknown')}")
+            raise typer.Exit(1)
+    elif skip_build:
+        console.print("\n[dim]Build skipped (--skip-build). Run 'mkdocs build' manually.[/dim]")
+
+
+@publish_app.command(name="preview")
+def publish_preview(
+    port: int = typer.Option(8001, "--port", "-p", help="Port for preview server"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Start a local preview server for the course book."""
+    _setup_logging(verbose)
+    from assistant.publisher import publish_all, serve_site
+
+    root = get_project_root()
+
+    console.print("[bold]Preparing site for preview...[/bold]")
+    result = publish_all(root, clean=True, build=False)
+    console.print(f"  {result['published']} files prepared\n")
+
+    console.print(f"[bold]Starting preview at[/bold] http://127.0.0.1:{port}")
+    console.print("[dim]Press Ctrl-C to stop[/dim]\n")
+
+    proc = serve_site(root, port=port)
+    try:
+        while True:
+            line = proc.stderr.readline()
+            if not line:
+                break
+            console.print(line.rstrip())
+    except KeyboardInterrupt:
+        proc.terminate()
+        console.print("\n[dim]Preview stopped.[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# serve command
+# ---------------------------------------------------------------------------
+
+
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host to bind to"),

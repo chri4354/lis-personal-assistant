@@ -66,6 +66,7 @@ _NAV = """\
   <a href="/" class="font-bold text-lg tracking-tight">LIS Assistant</a>
   <a href="/" class="hover:text-blue-300">Run</a>
   <a href="/history" class="hover:text-blue-300">History</a>
+  <a href="/publish" class="hover:text-blue-300">Publish</a>
   <a href="/usage" class="hover:text-blue-300">Usage</a>
 </nav>
 """
@@ -318,7 +319,7 @@ async def history():
     outputs_dir = ROOT / "outputs"
     files: list[tuple[Path, dict]] = []
 
-    for sub in ("meetings", "lectures", "communications"):
+    for sub in ("meetings", "lectures", "communications", "tasks"):
         sub_dir = outputs_dir / sub
         if not sub_dir.is_dir():
             continue
@@ -456,6 +457,102 @@ async def usage_page():
     )
 
     return _page(_card("LLM Usage", stats))
+
+
+# ---------------------------------------------------------------------------
+# Publish
+# ---------------------------------------------------------------------------
+
+
+@app.get("/publish", response_class=HTMLResponse)
+async def publish_page():
+    """Show publishable files and build controls."""
+    from assistant.publisher import PublishConfig, scan_publishable
+
+    config = PublishConfig(ROOT)
+    publishable = scan_publishable(ROOT, config)
+
+    if not publishable:
+        hint = (
+            '<p class="text-gray-500 text-sm">No publishable files found.</p>'
+            '<p class="text-gray-400 text-xs mt-2">'
+            'Add <code>publish: true</code> to the frontmatter of output files to include them.</p>'
+        )
+        return _page(_card("Publish", hint))
+
+    rows = ""
+    for pf in publishable:
+        rel = str(pf.path.relative_to(ROOT))
+        rows += (
+            f"<tr class='border-b border-gray-100'>"
+            f"<td class='py-2 px-3 text-sm'>"
+            f"<a href='/view?path={_escape_html(rel)}' class='text-blue-600 hover:underline'>{_escape_html(pf.title)}</a>"
+            f"</td>"
+            f"<td class='py-2 px-3 text-sm text-gray-500'>{_escape_html(pf.module or '—')}</td>"
+            f"<td class='py-2 px-3 text-sm text-gray-500 text-right'>{pf.week if pf.week is not None else '—'}</td>"
+            f"<td class='py-2 px-3 text-sm text-gray-500 text-right'>{pf.session if pf.session is not None else '—'}</td>"
+            f"</tr>"
+        )
+
+    table_html = (
+        '<table class="w-full text-left">'
+        "<thead><tr class='border-b-2 border-gray-200'>"
+        "<th class='py-2 px-3 text-xs text-gray-500 uppercase'>Title</th>"
+        "<th class='py-2 px-3 text-xs text-gray-500 uppercase'>Module</th>"
+        "<th class='py-2 px-3 text-xs text-gray-500 uppercase text-right'>Week</th>"
+        "<th class='py-2 px-3 text-xs text-gray-500 uppercase text-right'>Session</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table>"
+    )
+
+    spinner_svg = '<svg class="htmx-indicator animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>'
+
+    build_form = (
+        f'<form hx-post="/publish/build" hx-target="#build-result" class="mt-4">'
+        f'<button type="submit" class="bg-green-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-green-700 transition flex items-center gap-2">'
+        f'{spinner_svg} Build site ({len(publishable)} file{"s" if len(publishable) != 1 else ""})</button>'
+        f'</form>'
+        f'<div id="build-result" class="mt-3"></div>'
+    )
+
+    body = _card(f"Publishable Files ({len(publishable)})", table_html + build_form)
+    return _page(body)
+
+
+@app.post("/publish/build", response_class=HTMLResponse)
+async def publish_build_endpoint():
+    """Run the full publication pipeline."""
+    from assistant.publisher import publish_all
+
+    try:
+        result = publish_all(ROOT, clean=True, build=True)
+    except Exception as exc:
+        logger.exception("Publish failed")
+        return HTMLResponse(
+            f'<div class="bg-red-50 border border-red-200 text-red-700 rounded-md p-4 text-sm">'
+            f"Publish error: {_escape_html(str(exc))}</div>"
+        )
+
+    parts: list[str] = []
+
+    parts.append(
+        f'<p class="text-sm"><strong>{result["published"]}</strong> file(s) published, '
+        f'config written to <code>{result["mkdocs_config"]}</code></p>'
+    )
+
+    if result.get("files"):
+        file_items = "".join(f"<li class='text-xs text-gray-500'>{_escape_html(f)}</li>" for f in result["files"])
+        parts.append(f'<ul class="list-disc ml-4 mt-2">{file_items}</ul>')
+
+    if result.get("build_ok"):
+        parts.append('<p class="text-green-700 font-medium mt-3">Site built successfully.</p>')
+    elif "build_ok" in result:
+        err = result.get("build_error", "unknown error")
+        parts.append(f'<p class="text-red-700 font-medium mt-3">Build failed: {_escape_html(err)}</p>')
+
+    css = "bg-green-50 border-green-200" if result.get("build_ok") else "bg-yellow-50 border-yellow-200"
+    return HTMLResponse(
+        f'<div class="{css} border rounded-md p-4 text-sm">{"".join(parts)}</div>'
+    )
 
 
 # ---------------------------------------------------------------------------

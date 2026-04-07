@@ -22,3 +22,6 @@ env/
 outputs/.usage_log.jsonl
 
 site/
+mkdocs.yml
+publish/modules/
+publish/pages/
